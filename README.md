@@ -45,6 +45,10 @@ python3 tools/ble_tool.py --dev 4c11xxxxxxxx info
 - 设备深睡（默认待机 300s）后需按键唤醒，USB 串口会消失
 - 固件无时区概念（按 UTC 显示 epoch），授时需 +8h 补偿
 
+## Responsible Disclosure
+
+研究发现：该设备 BLE 命令特征**无需配对/绑定即可写入**（volume/token/nickname 等）。任何靠近设备的攻击者都能执行本工具提供的操作。建议 FoloToy 官方为命令特征增加配对绑定与写入鉴权。本仓库披露此信息旨在协助厂商改进设备安全性，请勿用于干扰他人设备。
+
 ## License
 
 MIT
