@@ -30,10 +30,10 @@
     input, textarea { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 10px; border-radius: 6px; font-size: 14px; margin-bottom: 10px; outline: none; }
     input:focus, textarea:focus { border-color: var(--mint); }
     .tips { font-size: 12px; color: var(--muted); line-height: 1.5; margin-top: 8px; }
-    .log-box { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px; font-family: monospace; font-size: 11px; color: var(--muted); height: 120px; overflow-y: auto; margin-top: 10px; line-height: 1.4; }
+    .log-box { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px; font-family: monospace; font-size: 11px; color: var(--muted); height: 130px; overflow-y: auto; margin-top: 10px; line-height: 1.4; }
     .log-success { color: var(--mint); }
     .log-err { color: var(--red); }
-    .auto-panel { background: rgba(62, 207, 142, 0.1); border: 1px dashed var(--mint); border-radius: 6px; padding: 12px; margin-top: 10px; display: none; }
+    .auto-panel { background: rgba(62, 207, 142, 0.15); border: 2px solid var(--mint); border-radius: 8px; padding: 14px; margin-bottom: 16px; display: none; }
   </style>
 </head>
 <body>
@@ -43,9 +43,9 @@
   </header>
 
   <div id="autoPanel" class="auto-panel">
-    <div style="font-size: 13px; color: var(--mint); font-weight: bold; margin-bottom: 6px;">⚡ 收到自动化传入通知：</div>
-    <div id="autoMsg" style="font-size: 14px; color: #fff; margin-bottom: 10px;"></div>
-    <button id="btnAutoSend" class="btn" style="margin-top:0;">👆 点击此大按钮一键推送到工牌</button>
+    <div style="font-size: 14px; color: var(--mint); font-weight: bold; margin-bottom: 6px;">⚡ 收到自动化验证码：</div>
+    <div id="autoMsg" style="font-size: 16px; color: #fff; font-weight: bold; margin-bottom: 12px; word-break: break-all;"></div>
+    <button id="btnAutoSend" class="btn" style="margin-top:0; font-size:15px; padding:14px;">🚀 立即发送到工牌屏幕</button>
   </div>
 
   <div class="card">
@@ -53,7 +53,7 @@
     <button id="btnConnect" class="btn">⚡ 一键连接 AI Passport</button>
     <button id="btnDisconnect" class="btn btn-red" style="display:none;">断开连接</button>
     <div class="tips">
-      🎯 <strong>保活模式说明</strong>：在 Bluefy 中点击一次连接后，保持该标签页在后台，手机即可持久与工牌通信；若从快捷指令自动唤起，点击上方出现的高亮大按钮即可发送！
+      🎯 <strong>保活建议</strong>：在 Bluefy 中连接一次后，直接切换到手机后台常驻。收到短信时将秒级通过活跃通道直推工牌！
     </div>
   </div>
 
@@ -140,7 +140,6 @@
       }
     };
 
-    // 尝试静默重连已授权设备 (WebBluetooth getDevices)
     const trySilentReconnect = async () => {
       if (navigator.bluetooth && navigator.bluetooth.getDevices) {
         try {
@@ -172,7 +171,6 @@
       if (!writeChar || !device || !device.gatt.connected) {
         const silentOk = await trySilentReconnect();
         if (!silentOk) {
-          // 需要用户手势授权
           pendingPayload = obj;
           document.getElementById('autoPanel').style.display = 'block';
           document.getElementById('autoMsg').innerText = `[${obj.src || '通知'}] ${obj.notify || obj.note}`;
@@ -229,29 +227,37 @@
       sendJson({ notify: msg, src: src, duration: 15000 });
     };
 
+    // 自动解码 URL 参数 (全面支持 decodeURIComponent)
     window.addEventListener('load', async () => {
-      const params = new URLSearchParams(window.location.search);
-      const notifyParam = params.get('notify');
-      const srcParam = params.get('src') || "SMS 验证码";
-      const noteParam = params.get('note');
+      const url = new URL(window.location.href);
+      const notifyParam = url.searchParams.get('notify');
+      const srcParam = url.searchParams.get('src') || "SMS 验证码";
+      const noteParam = url.searchParams.get('note');
 
       if (notifyParam) {
-        log(`⚡ 检测到自动化传入: [${srcParam}] ${notifyParam}`);
-        pendingPayload = { notify: notifyParam, src: srcParam, duration: 15000 };
+        let cleanNotify = notifyParam;
+        try { cleanNotify = decodeURIComponent(notifyParam); } catch(e){}
+        let cleanSrc = srcParam;
+        try { cleanSrc = decodeURIComponent(srcParam); } catch(e){}
+
+        log(`⚡ 自动化触发: [${cleanSrc}] ${cleanNotify}`);
+        pendingPayload = { notify: cleanNotify, src: cleanSrc, duration: 15000 };
         document.getElementById('autoPanel').style.display = 'block';
-        document.getElementById('autoMsg').innerText = `[${srcParam}] ${notifyParam}`;
+        document.getElementById('autoMsg').innerText = `[${cleanSrc}] ${cleanNotify}`;
         
-        // 尝试静默直连
+        // 尝试自动静默下发
         const ok = await trySilentReconnect();
         if (ok) {
           await sendJson(pendingPayload);
           pendingPayload = null;
         }
       } else if (noteParam) {
-        log(`⚡ 检测到自动化传入便签: ${noteParam}`);
-        pendingPayload = { note: noteParam };
+        let cleanNote = noteParam;
+        try { cleanNote = decodeURIComponent(noteParam); } catch(e){}
+        log(`⚡ 自动化传入便签: ${cleanNote}`);
+        pendingPayload = { note: cleanNote };
         document.getElementById('autoPanel').style.display = 'block';
-        document.getElementById('autoMsg').innerText = `便签: ${noteParam}`;
+        document.getElementById('autoMsg').innerText = `便签: ${cleanNote}`;
         
         const ok = await trySilentReconnect();
         if (ok) {
