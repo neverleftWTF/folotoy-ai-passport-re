@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Cyber工牌 // 控制台</title>
+  <style>
+    :root {
+      --bg: #0C0E12;
+      --surface: #161920;
+      --border: #262B36;
+      --mint: #3ECF8E;
+      --text: #F3F4F6;
+      --muted: #717786;
+      --red: #E53935;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: var(--bg); color: var(--text); padding: 20px; max-width: 480px; margin: 0 auto; }
+    header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 16px; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+    h1 { font-size: 18px; color: var(--mint); letter-spacing: 1px; }
+    .status-badge { font-size: 12px; padding: 4px 8px; border-radius: 4px; background: var(--surface); border: 1px solid var(--border); color: var(--muted); }
+    .status-badge.connected { color: var(--mint); border-color: var(--mint); font-weight: bold; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    .card h2 { font-size: 13px; color: var(--muted); margin-bottom: 12px; text-transform: uppercase; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; width: 100%; padding: 12px; background: var(--mint); color: #0C0E12; font-weight: bold; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; margin-top: 8px; transition: all 0.1s; }
+    .btn:active { opacity: 0.8; transform: translateY(1px); }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .btn-outline:active { border-color: var(--mint); color: var(--mint); }
+    input, textarea { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 10px; border-radius: 6px; font-size: 14px; margin-bottom: 10px; outline: none; }
+    input:focus, textarea:focus { border-color: var(--mint); }
+    .tips { font-size: 12px; color: var(--muted); line-height: 1.5; margin-top: 8px; }
+    .log-box { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px; font-family: monospace; font-size: 11px; color: var(--muted); height: 120px; overflow-y: auto; margin-top: 10px; line-height: 1.4; }
+    .log-success { color: var(--mint); }
+    .log-err { color: var(--red); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>CYBER BADGE // HUB</h1>
+    <div id="status" class="status-badge">未连接</div>
+  </header>
+
+  <div class="card">
+    <h2>1. 蓝牙连接设备</h2>
+    <button id="btnConnect" class="btn">扫描并连接 CyberBadge</button>
+    <div class="tips">
+      💡 提示：点击后浏览器会弹出蓝牙列表。请选择 <strong>CyberBadge</strong> 或 <strong>4c11ae...</strong> 并点击「配对 / 连接」。
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>2. 一键时间校准 (东八区 UTC+8)</h2>
+    <button id="btnSyncTime" class="btn btn-outline">同步当前手机时间至工牌</button>
+  </div>
+
+  <div class="card">
+    <h2>3. 动态天气与便签推屏</h2>
+    <input type="text" id="inpNote" value="杭州 // 26℃ 晴" placeholder="输入你想在工牌上显示的文字">
+    <button id="btnSendNote" class="btn btn-outline">更新工牌便签文字</button>
+  </div>
+
+  <div class="card">
+    <h2>4. 手机通知 / 验证码弹窗测试</h2>
+    <input type="text" id="inpNotifSrc" value="SMS 验证码" placeholder="通知来源 (SMS / WeChat / 外卖)">
+    <input type="text" id="inpNotifMsg" value="验证码: 849201" placeholder="通知正文">
+    <button id="btnSendNotif" class="btn btn-outline">发送弹窗通知到工牌</button>
+  </div>
+
+  <div class="card">
+    <h2>实时交互日志</h2>
+    <div class="log-box" id="logBox">> 控制台就绪，请先连接蓝牙工牌...</div>
+  </div>
+
+  <script>
+    const SVC_UUID = "54524145-4341-5244-0000-000000000000";
+    const CH_WRITE = "54524145-4341-5244-0000-000000000010";
+    let device = null;
+    let server = null;
+    let writeChar = null;
+
+    const log = (msg, type = "") => {
+      const b = document.getElementById('logBox');
+      const cls = type === "success" ? "log-success" : (type === "err" ? "log-err" : "");
+      b.innerHTML += `<div class="${cls}">[${new Date().toLocaleTimeString()}] ${msg}</div>`;
+      b.scrollTop = b.scrollHeight;
+    };
+
+    document.getElementById('btnConnect').onclick = async () => {
+      try {
+        log("正在唤起系统蓝牙扫描，请在弹窗列表中选中 CyberBadge...");
+        
+        device = await navigator.bluetooth.requestDevice({
+          filters: [
+            { namePrefix: 'Cyber' },
+            { namePrefix: '4c11' },
+            { name: 'CyberBadge' }
+          ],
+          optionalServices: [SVC_UUID]
+        }).catch(async (e) => {
+          log("切换全设备扫描模式...");
+          return await navigator.bluetooth.requestDevice({
+            acceptAllDevices: true,
+            optionalServices: [SVC_UUID]
+          });
+        });
+
+        const devName = device.name || device.id || "未知设备";
+        log(`已选中设备: ${devName}，正在建立 GATT 连接...`);
+        
+        device.addEventListener('gattserverdisconnected', () => {
+          document.getElementById('status').innerText = "已断开";
+          document.getElementById('status').classList.remove('connected');
+          log("⚠️ 蓝牙连接已断开", "err");
+        });
+
+        server = await device.gatt.connect();
+        log("正在获取服务 54524145-4341-5244-...");
+        const service = await server.getPrimaryService(SVC_UUID);
+        log("正在获取写入特征 0010...");
+        writeChar = await service.getCharacteristic(CH_WRITE);
+
+        document.getElementById('status').innerText = `已连接: ${devName}`;
+        document.getElementById('status').classList.add('connected');
+        log(`✅ 蓝牙连接成功！可自由下发时间/天气/通知。`, "success");
+      } catch (err) {
+        if (err.name === 'NotFoundError' || err.message.includes('cancelled')) {
+          log("⚠️ 提示：你取消了蓝牙选择弹窗。请重新点击并在列表中点击选中设备后再按「配对/连接」。", "err");
+        } else {
+          log(`❌ 连接异常: ${err.message}`, "err");
+        }
+      }
+    };
+
+    const sendJson = async (obj) => {
+      if (!writeChar) {
+        alert("请先点击上方「扫描并连接 CyberBadge」");
+        return;
+      }
+      try {
+        const jsonStr = JSON.stringify(obj);
+        const encoder = new TextEncoder();
+        const payload = encoder.encode(jsonStr);
+        // 打包 v3 标准帧: [0x01][0x01][len_lo][len_hi][payload]
+        const frame = new Uint8Array(4 + payload.length);
+        frame[0] = 0x01;
+        frame[1] = 0x01;
+        frame[2] = payload.length & 0xFF;
+        frame[3] = (payload.length >> 8) & 0xFF;
+        frame.set(payload, 4);
+        
+        await writeChar.writeValue(frame);
+        log(`➡️ 发送成功: ${jsonStr}`, "success");
+      } catch (err) {
+        log(`❌ 发送失败: ${err.message}`, "err");
+      }
+    };
+
+    document.getElementById('btnSyncTime').onclick = () => {
+      const epochBeijing = Math.floor(Date.now() / 1000) + 8 * 3600;
+      sendJson({ time: epochBeijing });
+    };
+
+    document.getElementById('btnSendNote').onclick = () => {
+      const note = document.getElementById('inpNote').value;
+      if (!note) return;
+      sendJson({ note: note });
+    };
+
+    document.getElementById('btnSendNotif').onclick = () => {
+      const src = document.getElementById('inpNotifSrc').value || "SMS";
+      const msg = document.getElementById('inpNotifMsg').value || "通知测试";
+      sendJson({ notify: msg, src: src });
+    };
+  </script>
+</body>
+</html>
