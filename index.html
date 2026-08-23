@@ -38,7 +38,7 @@
 </head>
 <body>
   <header>
-    <h1>CYBER BADGE // HUB</h1>
+    <h1>AI PASSPORT // HUB</h1>
     <div id="status" class="status-badge">未连接</div>
   </header>
 
@@ -53,7 +53,7 @@
     <button id="btnConnect" class="btn">⚡ 一键连接 AI Passport</button>
     <button id="btnDisconnect" class="btn btn-red" style="display:none;">断开连接</button>
     <div class="tips">
-      🎯 <strong>保活建议</strong>：在 Bluefy 中连接一次后，直接切换到手机后台常驻。收到短信时将秒级通过活跃通道直推工牌！
+      🎯 <strong>保活模式</strong>：在 Bluefy 中连接一次后，直接切换到手机后台常驻。收到短信时将秒级通过活跃通道直推工牌！
     </div>
   </div>
 
@@ -125,7 +125,7 @@
         const dev = await navigator.bluetooth.requestDevice({
           filters: [
             { namePrefix: "4c11" },
-            { namePrefix: "Cyber" }
+            { namePrefix: "AI" }
           ],
           optionalServices: [SVC_UUID]
         });
@@ -140,24 +140,6 @@
       }
     };
 
-    const trySilentReconnect = async () => {
-      if (navigator.bluetooth && navigator.bluetooth.getDevices) {
-        try {
-          const devices = await navigator.bluetooth.getDevices();
-          for (const d of devices) {
-            if ((d.name && d.name.includes("4c11")) || (d.name && d.name.includes("Cyber"))) {
-              log(`🔄 发现已配对设备 ${d.name}，正在尝试自动静默重连...`);
-              const ok = await setupGATT(d);
-              if (ok) return true;
-            }
-          }
-        } catch (e) {
-          console.warn("Silent reconnect not supported/failed:", e);
-        }
-      }
-      return false;
-    };
-
     document.getElementById('btnConnect').onclick = connectBLE;
 
     document.getElementById('btnDisconnect').onclick = () => {
@@ -169,14 +151,11 @@
 
     const sendJson = async (obj) => {
       if (!writeChar || !device || !device.gatt.connected) {
-        const silentOk = await trySilentReconnect();
-        if (!silentOk) {
-          pendingPayload = obj;
-          document.getElementById('autoPanel').style.display = 'block';
-          document.getElementById('autoMsg').innerText = `[${obj.src || '通知'}] ${obj.notify || obj.note}`;
-          log("⚠️ 需要单次点击确认以激活蓝牙通道，请点击上方绿色大按钮！", "err");
-          return;
-        }
+        pendingPayload = obj;
+        document.getElementById('autoPanel').style.display = 'block';
+        document.getElementById('autoMsg').innerText = `[${obj.src || '通知'}] ${obj.notify || obj.note}`;
+        log("⚠️ 未建立蓝牙连接，请点击上方绿色大按钮连接并发送！", "err");
+        return;
       }
       try {
         const jsonStr = JSON.stringify(obj);
@@ -227,7 +206,6 @@
       sendJson({ notify: msg, src: src, duration: 15000 });
     };
 
-    // 自动解码 URL 参数 (全面支持 decodeURIComponent)
     window.addEventListener('load', async () => {
       const url = new URL(window.location.href);
       const notifyParam = url.searchParams.get('notify');
@@ -240,17 +218,10 @@
         let cleanSrc = srcParam;
         try { cleanSrc = decodeURIComponent(srcParam); } catch(e){}
 
-        log(`⚡ 自动化触发: [${cleanSrc}] ${cleanNotify}`);
+        log(`⚡ 自动化传入: [${cleanSrc}] ${cleanNotify}`);
         pendingPayload = { notify: cleanNotify, src: cleanSrc, duration: 15000 };
         document.getElementById('autoPanel').style.display = 'block';
         document.getElementById('autoMsg').innerText = `[${cleanSrc}] ${cleanNotify}`;
-        
-        // 尝试自动静默下发
-        const ok = await trySilentReconnect();
-        if (ok) {
-          await sendJson(pendingPayload);
-          pendingPayload = null;
-        }
       } else if (noteParam) {
         let cleanNote = noteParam;
         try { cleanNote = decodeURIComponent(noteParam); } catch(e){}
@@ -258,12 +229,6 @@
         pendingPayload = { note: cleanNote };
         document.getElementById('autoPanel').style.display = 'block';
         document.getElementById('autoMsg').innerText = `便签: ${cleanNote}`;
-        
-        const ok = await trySilentReconnect();
-        if (ok) {
-          await sendJson(pendingPayload);
-          pendingPayload = null;
-        }
       }
     });
   </script>
