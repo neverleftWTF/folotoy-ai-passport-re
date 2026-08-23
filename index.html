@@ -46,7 +46,7 @@
     <button id="btnConnect" class="btn">⚡ 一键连接 AI Passport</button>
     <button id="btnDisconnect" class="btn btn-red" style="display:none;">断开连接</button>
     <div class="tips">
-      🎯 <strong>精准过滤已生效</strong>：点击后列表只会精准列出你的这台 <strong>AI Passport (4c11ae30d95a)</strong>，不会出现其他无关设备的干扰！
+      🎯 <strong>精准过滤已生效</strong>：点击后列表只会精准列出你的这台 <strong>AI Passport (4c11ae30d958)</strong>，不会出现其他无关设备的干扰！
     </div>
   </div>
 
@@ -62,10 +62,10 @@
   </div>
 
   <div class="card">
-    <h2>4. 手机通知 / 验证码弹窗测试</h2>
+    <h2>4. 手机通知 / 验证码弹窗测试 (持续30秒)</h2>
     <input type="text" id="inpNotifSrc" value="SMS 验证码" placeholder="通知来源 (SMS / WeChat / 外卖)">
     <input type="text" id="inpNotifMsg" value="验证码: 849201" placeholder="通知正文">
-    <button id="btnSendNotif" class="btn btn-outline">发送弹窗通知到工牌</button>
+    <button id="btnSendNotif" class="btn btn-outline">发送弹窗通知到工牌 (30s)</button>
   </div>
 
   <div class="card">
@@ -92,7 +92,6 @@
       try {
         log("🔍 正在精准寻找你的 AI Passport 工牌...");
         
-        // 核心优化：使用精准过滤条件，彻底排除周围杂乱设备，只展示 AI Passport！
         device = await navigator.bluetooth.requestDevice({
           filters: [
             { namePrefix: "4c11" },
@@ -174,7 +173,7 @@
     document.getElementById('btnSendNotif').onclick = () => {
       const src = document.getElementById('inpNotifSrc').value || "SMS 验证码";
       const msg = document.getElementById('inpNotifMsg').value || "通知测试";
-      sendJson({ notify: msg, src: src });
+      sendJson({ notify: msg, src: src, duration: 30000 });
     };
   </script>
 </body>
