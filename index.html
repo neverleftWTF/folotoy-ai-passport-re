@@ -62,10 +62,10 @@
   </div>
 
   <div class="card">
-    <h2>4. 手机通知 / 验证码弹窗测试 (持续30秒)</h2>
+    <h2>4. 手机通知 / 验证码弹窗测试 (持续15秒)</h2>
     <input type="text" id="inpNotifSrc" value="SMS 验证码" placeholder="通知来源 (SMS / WeChat / 外卖)">
     <input type="text" id="inpNotifMsg" value="验证码: 849201" placeholder="通知正文">
-    <button id="btnSendNotif" class="btn btn-outline">发送弹窗通知到工牌 (30s)</button>
+    <button id="btnSendNotif" class="btn btn-outline">发送弹窗通知到工牌 (15s)</button>
   </div>
 
   <div class="card">
@@ -88,7 +88,7 @@
       b.scrollTop = b.scrollHeight;
     };
 
-    document.getElementById('btnConnect').onclick = async () => {
+    const connectBLE = async () => {
       try {
         log("🔍 正在精准寻找你的 AI Passport 工牌...");
         
@@ -119,14 +119,18 @@
         document.getElementById('status').classList.add('connected');
         document.getElementById('btnDisconnect').style.display = 'block';
         log(`✅ 专属连接成功！可自由下发时间/便签/通知。`, "success");
+        return true;
       } catch (err) {
         if (err.name === 'NotFoundError' || err.message.includes('cancelled')) {
           log("⚠️ 提示：未选择设备或已取消。", "err");
         } else {
           log(`❌ 连接异常: ${err.message}`, "err");
         }
+        return false;
       }
     };
+
+    document.getElementById('btnConnect').onclick = connectBLE;
 
     document.getElementById('btnDisconnect').onclick = () => {
       if (device && device.gatt.connected) {
@@ -137,8 +141,8 @@
 
     const sendJson = async (obj) => {
       if (!writeChar) {
-        alert("请先点击上方「一键连接 AI Passport」");
-        return;
+        const ok = await connectBLE();
+        if (!ok) return;
       }
       try {
         const jsonStr = JSON.stringify(obj);
@@ -173,8 +177,29 @@
     document.getElementById('btnSendNotif').onclick = () => {
       const src = document.getElementById('inpNotifSrc').value || "SMS 验证码";
       const msg = document.getElementById('inpNotifMsg').value || "通知测试";
-      sendJson({ notify: msg, src: src, duration: 30000 });
+      sendJson({ notify: msg, src: src, duration: 15000 });
     };
+
+    // 🚀 Bluefy & 自动化 URL 参数直发支持: ?notify=123456&src=SMS
+    window.addEventListener('load', async () => {
+      const params = new URLSearchParams(window.location.search);
+      const notifyParam = params.get('notify');
+      const srcParam = params.get('src') || "SMS 验证码";
+      const noteParam = params.get('note');
+
+      if (notifyParam) {
+        log(`⚡ 检测到自动化传入通知: [${srcParam}] ${notifyParam}`);
+        // 自动连接并推送
+        setTimeout(async () => {
+          await sendJson({ notify: notifyParam, src: srcParam, duration: 15000 });
+        }, 500);
+      } else if (noteParam) {
+        log(`⚡ 检测到自动化传入便签: ${noteParam}`);
+        setTimeout(async () => {
+          await sendJson({ note: noteParam });
+        }, 500);
+      }
+    });
   </script>
 </body>
 </html>
