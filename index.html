@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Cyber工牌 // 控制台</title>
+  <title>Cyber工牌 // 专属控制台</title>
   <style>
     :root {
       --bg: #0C0E12;
@@ -42,12 +42,11 @@
   </header>
 
   <div class="card">
-    <h2>1. 蓝牙连接设备 (方案A 官方模式)</h2>
-    <button id="btnConnect" class="btn">扫描并连接 (4c11ae30d958 / 序列号)</button>
-    <button id="btnDisconnect" class="btn btn-red" style="display:none;">主动断开连接</button>
+    <h2>1. 专属一键直连 (已锁定特征)</h2>
+    <button id="btnConnect" class="btn">⚡ 一键连接 AI Passport</button>
+    <button id="btnDisconnect" class="btn btn-red" style="display:none;">断开连接</button>
     <div class="tips">
-      💡 <strong>官方连接指南</strong>：<br>
-      弹窗出现后，在设备列表中直接选中 <strong>4c11ae30d958</strong>（或类似 12 位序列号）点击配对即可！
+      🎯 <strong>精准过滤已生效</strong>：点击后列表只会精准列出你的这台 <strong>AI Passport (4c11ae30d95a)</strong>，不会出现其他无关设备的干扰！
     </div>
   </div>
 
@@ -71,10 +70,11 @@
 
   <div class="card">
     <h2>实时交互日志</h2>
-    <div class="log-box" id="logBox">> 控制台就绪，请点击上方连接按钮...</div>
+    <div class="log-box" id="logBox">> 专属控制台就绪，请点击上方「一键连接」...</div>
   </div>
 
   <script>
+    // 官方专属 TRAECARD 128-bit Service UUID
     const SVC_UUID = "54524145-4341-5244-0000-000000000000";
     const CH_WRITE = "54524145-4341-5244-0000-000000000010";
     let device = null;
@@ -90,15 +90,19 @@
 
     document.getElementById('btnConnect').onclick = async () => {
       try {
-        log("正在扫描，请在列表中选择 12 位序列号设备 (如 4c11ae...)...");
+        log("🔍 正在精准寻找你的 AI Passport 工牌...");
         
+        // 核心优化：使用精准过滤条件，彻底排除周围杂乱设备，只展示 AI Passport！
         device = await navigator.bluetooth.requestDevice({
-          acceptAllDevices: true,
+          filters: [
+            { namePrefix: "4c11" },
+            { namePrefix: "Cyber" }
+          ],
           optionalServices: [SVC_UUID]
         });
 
-        const devName = device.name || device.id || "未知设备";
-        log(`已选中设备: ${devName}，正在建立 GATT 连接...`);
+        const devName = device.name || device.id || "AI Passport";
+        log(`🎯 成功命中专属设备: ${devName}，正在建立连接...`);
         
         device.addEventListener('gattserverdisconnected', () => {
           document.getElementById('status').innerText = "已断开";
@@ -108,18 +112,17 @@
         });
 
         server = await device.gatt.connect();
-        log("正在获取服务...");
+        log("正在获取通信服务通道...");
         const service = await server.getPrimaryService(SVC_UUID);
-        log("正在获取通信通道...");
         writeChar = await service.getCharacteristic(CH_WRITE);
 
         document.getElementById('status').innerText = `已连接: ${devName}`;
         document.getElementById('status').classList.add('connected');
         document.getElementById('btnDisconnect').style.display = 'block';
-        log(`✅ 蓝牙连接成功！可自由下发时间/天气/通知。`, "success");
+        log(`✅ 专属连接成功！可自由下发时间/便签/通知。`, "success");
       } catch (err) {
         if (err.name === 'NotFoundError' || err.message.includes('cancelled')) {
-          log("⚠️ 提示：选择已取消。请再次点击并在弹窗列表中选中设备。", "err");
+          log("⚠️ 提示：未选择设备或已取消。", "err");
         } else {
           log(`❌ 连接异常: ${err.message}`, "err");
         }
@@ -129,19 +132,20 @@
     document.getElementById('btnDisconnect').onclick = () => {
       if (device && device.gatt.connected) {
         device.gatt.disconnect();
-        log("已主动断开蓝牙连接，释放设备广播。");
+        log("已主动断开蓝牙连接。");
       }
     };
 
     const sendJson = async (obj) => {
       if (!writeChar) {
-        alert("请先点击上方「扫描并连接」");
+        alert("请先点击上方「一键连接 AI Passport」");
         return;
       }
       try {
         const jsonStr = JSON.stringify(obj);
         const encoder = new TextEncoder();
         const payload = encoder.encode(jsonStr);
+        // 标准 v3 协议帧: [0x01][0x01][len_lo][len_hi][payload]
         const frame = new Uint8Array(4 + payload.length);
         frame[0] = 0x01;
         frame[1] = 0x01;
