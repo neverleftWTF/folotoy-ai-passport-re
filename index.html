@@ -26,6 +26,7 @@
     .btn:active { opacity: 0.8; transform: translateY(1px); }
     .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
     .btn-outline:active { border-color: var(--mint); color: var(--mint); }
+    .btn-red { background: transparent; border: 1px solid #7F2020; color: #FF6666; font-size: 12px; padding: 8px; margin-top: 6px; }
     input, textarea { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 10px; border-radius: 6px; font-size: 14px; margin-bottom: 10px; outline: none; }
     input:focus, textarea:focus { border-color: var(--mint); }
     .tips { font-size: 12px; color: var(--muted); line-height: 1.5; margin-top: 8px; }
@@ -42,9 +43,12 @@
 
   <div class="card">
     <h2>1. 蓝牙连接设备</h2>
-    <button id="btnConnect" class="btn">扫描并连接 CyberBadge</button>
+    <button id="btnConnect" class="btn">扫描并连接 (任意设备列表模式)</button>
+    <button id="btnDisconnect" class="btn btn-red" style="display:none;">主动断开当前连接 (释放蓝牙)</button>
     <div class="tips">
-      💡 提示：点击后浏览器会弹出蓝牙列表。请选择 <strong>CyberBadge</strong> 或 <strong>4c11ae...</strong> 并点击「配对 / 连接」。
+      💡 <strong>搜不到排查建议</strong>：<br>
+      1. 如果刚才在电脑 Chrome 或另一个手机标签页连过，请关闭那个标签页（BLE 一次只能连一台设备）。<br>
+      2. 弹窗出现后，在列表中选中 <strong>CyberBadge</strong> 或名称为空/为数字的项点击连接。
     </div>
   </div>
 
@@ -68,7 +72,7 @@
 
   <div class="card">
     <h2>实时交互日志</h2>
-    <div class="log-box" id="logBox">> 控制台就绪，请先连接蓝牙工牌...</div>
+    <div class="log-box" id="logBox">> 控制台就绪，请点击上方连接按钮...</div>
   </div>
 
   <script>
@@ -87,60 +91,59 @@
 
     document.getElementById('btnConnect').onclick = async () => {
       try {
-        log("正在唤起系统蓝牙扫描，请在弹窗列表中选中 CyberBadge...");
+        log("正在唤起全设备扫描（无过滤模式），请在弹出的完整蓝牙列表中查找 CyberBadge...");
         
+        // 彻底取消所有过滤条件，直接列出系统扫描到的所有设备
         device = await navigator.bluetooth.requestDevice({
-          filters: [
-            { namePrefix: 'Cyber' },
-            { namePrefix: '4c11' },
-            { name: 'CyberBadge' }
-          ],
+          acceptAllDevices: true,
           optionalServices: [SVC_UUID]
-        }).catch(async (e) => {
-          log("切换全设备扫描模式...");
-          return await navigator.bluetooth.requestDevice({
-            acceptAllDevices: true,
-            optionalServices: [SVC_UUID]
-          });
         });
 
         const devName = device.name || device.id || "未知设备";
-        log(`已选中设备: ${devName}，正在建立 GATT 连接...`);
+        log(`已选中设备: ${devName}，正在建立连接...`);
         
         device.addEventListener('gattserverdisconnected', () => {
           document.getElementById('status').innerText = "已断开";
           document.getElementById('status').classList.remove('connected');
+          document.getElementById('btnDisconnect').style.display = 'none';
           log("⚠️ 蓝牙连接已断开", "err");
         });
 
         server = await device.gatt.connect();
-        log("正在获取服务 54524145-4341-5244-...");
+        log("正在获取服务...");
         const service = await server.getPrimaryService(SVC_UUID);
-        log("正在获取写入特征 0010...");
+        log("正在获取通信通道...");
         writeChar = await service.getCharacteristic(CH_WRITE);
 
         document.getElementById('status').innerText = `已连接: ${devName}`;
         document.getElementById('status').classList.add('connected');
+        document.getElementById('btnDisconnect').style.display = 'block';
         log(`✅ 蓝牙连接成功！可自由下发时间/天气/通知。`, "success");
       } catch (err) {
         if (err.name === 'NotFoundError' || err.message.includes('cancelled')) {
-          log("⚠️ 提示：你取消了蓝牙选择弹窗。请重新点击并在列表中点击选中设备后再按「配对/连接」。", "err");
+          log("⚠️ 提示：选择已取消。请再次点击并在弹窗列表中选中设备。", "err");
         } else {
           log(`❌ 连接异常: ${err.message}`, "err");
         }
       }
     };
 
+    document.getElementById('btnDisconnect').onclick = () => {
+      if (device && device.gatt.connected) {
+        device.gatt.disconnect();
+        log("已主动断开蓝牙连接，释放设备广播。");
+      }
+    };
+
     const sendJson = async (obj) => {
       if (!writeChar) {
-        alert("请先点击上方「扫描并连接 CyberBadge」");
+        alert("请先点击上方「扫描并连接」");
         return;
       }
       try {
         const jsonStr = JSON.stringify(obj);
         const encoder = new TextEncoder();
         const payload = encoder.encode(jsonStr);
-        // 打包 v3 标准帧: [0x01][0x01][len_lo][len_hi][payload]
         const frame = new Uint8Array(4 + payload.length);
         frame[0] = 0x01;
         frame[1] = 0x01;
@@ -167,7 +170,7 @@
     };
 
     document.getElementById('btnSendNotif').onclick = () => {
-      const src = document.getElementById('inpNotifSrc').value || "SMS";
+      const src = document.getElementById('inpNotifSrc').value || "SMS 验证码";
       const msg = document.getElementById('inpNotifMsg').value || "通知测试";
       sendJson({ notify: msg, src: src });
     };
