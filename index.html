@@ -42,13 +42,12 @@
   </header>
 
   <div class="card">
-    <h2>1. 蓝牙连接设备</h2>
-    <button id="btnConnect" class="btn">扫描并连接 (任意设备列表模式)</button>
-    <button id="btnDisconnect" class="btn btn-red" style="display:none;">主动断开当前连接 (释放蓝牙)</button>
+    <h2>1. 蓝牙连接设备 (方案A 官方模式)</h2>
+    <button id="btnConnect" class="btn">扫描并连接 (4c11ae30d958 / 序列号)</button>
+    <button id="btnDisconnect" class="btn btn-red" style="display:none;">主动断开连接</button>
     <div class="tips">
-      💡 <strong>搜不到排查建议</strong>：<br>
-      1. 如果刚才在电脑 Chrome 或另一个手机标签页连过，请关闭那个标签页（BLE 一次只能连一台设备）。<br>
-      2. 弹窗出现后，在列表中选中 <strong>CyberBadge</strong> 或名称为空/为数字的项点击连接。
+      💡 <strong>官方连接指南</strong>：<br>
+      弹窗出现后，在设备列表中直接选中 <strong>4c11ae30d958</strong>（或类似 12 位序列号）点击配对即可！
     </div>
   </div>
 
@@ -91,16 +90,15 @@
 
     document.getElementById('btnConnect').onclick = async () => {
       try {
-        log("正在唤起全设备扫描（无过滤模式），请在弹出的完整蓝牙列表中查找 CyberBadge...");
+        log("正在扫描，请在列表中选择 12 位序列号设备 (如 4c11ae...)...");
         
-        // 彻底取消所有过滤条件，直接列出系统扫描到的所有设备
         device = await navigator.bluetooth.requestDevice({
           acceptAllDevices: true,
           optionalServices: [SVC_UUID]
         });
 
         const devName = device.name || device.id || "未知设备";
-        log(`已选中设备: ${devName}，正在建立连接...`);
+        log(`已选中设备: ${devName}，正在建立 GATT 连接...`);
         
         device.addEventListener('gattserverdisconnected', () => {
           document.getElementById('status').innerText = "已断开";
